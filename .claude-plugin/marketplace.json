@@ -1,0 +1,5 @@
+{
+  "name": "agent-watch",
+  "owner": { "name": "jaeyoon-choi" },
+  "plugins": [{ "name": "agent-watch", "source": "./" }]
+}
