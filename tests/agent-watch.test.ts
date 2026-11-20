@@ -170,10 +170,10 @@ test('the task list beats the estimate', async ($, on) => {
 })
 
 // Props of the engine's agent row, with only the fields the mod reads.
-function agentRow(id: string, description: string, columns: number) {
+function agentRow(id: string, description: string, columns: number, extra: object = {}) {
   return {
     id, description, type: 'Explore', status: 'running', startTime: 1_000_000,
-    rowIds: [id], columns, isHidden: false,
+    rowIds: [id], columns, isHidden: false, model: 'claude-haiku-5-5', effort: 'low', ...extra,
   } as never
 }
 
@@ -198,14 +198,24 @@ test('the agent row shows the robot, the bar, the phrase and the tool count', as
   await clock.advance(65_000)
 
   await $.ui.render({ surface: 'terminal', component: 'AgentRow', requestId: 'a1', props: agentRow('a1', 'find fields', 120) })
-  expect(plain(bodies[0] ?? '')).toBe('🤖 ███▎     ~40%  find fields  statusline 필드를 찾는 중  1m05s · 1 tools')
+  expect(plain(bodies[0] ?? '')).toBe('🤖 ███▎     ~40%  find fields  Haiku 5.5 low  statusline 필드를 찾는 중  1m05s · 1 tools')
 
   // A narrow row cuts the phrase, not the time and the tool count, and a
   // row too narrow for 8 cells of it leaves the phrase out.
-  await $.ui.render({ surface: 'terminal', component: 'AgentRow', requestId: 'a1', props: agentRow('a1', 'find fields', 60) })
-  expect(plain(bodies[1] ?? '')).toBe('🤖 ███▎     ~40%  find fields  statusline…  1m05s · 1 tools')
-  await $.ui.render({ surface: 'terminal', component: 'AgentRow', requestId: 'a1', props: agentRow('a1', 'find fields', 52) })
-  expect(plain(bodies[2] ?? '')).toBe('🤖 ███▎     ~40%  find fields  1m05s · 1 tools')
+  await $.ui.render({ surface: 'terminal', component: 'AgentRow', requestId: 'a1', props: agentRow('a1', 'find fields', 75) })
+  expect(plain(bodies[1] ?? '')).toBe('🤖 ███▎     ~40%  find fields  Haiku 5.5 low  statusline…  1m05s · 1 tools')
+  await $.ui.render({ surface: 'terminal', component: 'AgentRow', requestId: 'a1', props: agentRow('a1', 'find fields', 66) })
+  expect(plain(bodies[2] ?? '')).toBe('🤖 ███▎     ~40%  find fields  Haiku 5.5 low  1m05s · 1 tools')
+
+  // The last request names what the agent really ran on; with no effort at
+  // all, only the model shows.
+  await $.ui.render({
+    surface: 'terminal', component: 'AgentRow', requestId: 'a1',
+    props: agentRow('a1', 'find fields', 120, { lastRequest: { at: 1, model: 'claude-opus-5-5', effort: 'xhigh' } }),
+  })
+  expect(plain(bodies[3] ?? '')).toContain('find fields  Opus 5.5 xhigh  statusline')
+  await $.ui.render({ surface: 'terminal', component: 'AgentRow', requestId: 'a1', props: agentRow('a1', 'find fields', 120, { effort: undefined }) })
+  expect(plain(bodies[4] ?? '')).toContain('find fields  Haiku 5.5  statusline')
 })
 
 test('a fraction reply gives the estimate too', async ($, on) => {

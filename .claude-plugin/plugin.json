@@ -1,6 +1,6 @@
 {
   "name": "agent-watch",
-  "version": "0.3.0",
-  "description": "Redraws each row of Claude Code's agent list with a progress bar and a Haiku summary of what the subagent is doing",
+  "version": "0.4.0",
+  "description": "Redraws each row of Claude Code's agent list with a progress bar, the agent's model and effort, and a Haiku summary of what it is doing",
   "types": "./types/index.d.ts"
 }

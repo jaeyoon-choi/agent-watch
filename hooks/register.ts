@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, ModelEffort, Register } from 'claude-code'
 
 import type { AgentActivity } from '../types'
 
@@ -158,7 +158,39 @@ function elapsed(ms: number): string {
   return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, '0')}s`
 }
 
-type RowInfo = { description: string; status: string; startTime: number; columns?: number }
+type Effort = ModelEffort | number
+type RowInfo = {
+  description: string; status: string; startTime: number; columns?: number
+  model?: string; effort?: Effort; lastRequest?: { model: string; effort?: Effort }
+}
+
+const FAMILY_COLOR: Record<string, number> = { opus: 177, sonnet: 75, haiku: 114, fable: 215 }
+const EFFORT_COLOR: Record<string, number> = { low: 108, medium: 74, high: 179, xhigh: 209, max: 203 }
+
+// claude-haiku-5-5 → Haiku 5.5; an id of another shape is shown as it is.
+function modelName(id: string): { name: string; family: string } {
+  const m = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?(?:\[[^\]]*\])?$/.exec(id)
+  if (!m || !m[1]) return { name: id, family: '' }
+  const family = m[1]
+  const title = family.charAt(0).toUpperCase() + family.slice(1)
+  return { name: m[3] ? `${title} ${m[2]}.${m[3]}` : `${title} ${m[2]}`, family }
+}
+
+// What the agent's last request ran on, else what it was spawned with. No
+// effort means the agent takes the session's, or its model takes none.
+function modelAndEffort(info: RowInfo, isRunning: boolean): { plain: string; styled: string } {
+  const id = info.lastRequest?.model ?? info.model
+  const effort = info.lastRequest?.effort ?? info.effort
+  if (!id) return { plain: '', styled: '' }
+  const { name, family } = modelName(id)
+  const level = effort === undefined ? '' : String(effort)
+  const mc = isRunning ? FAMILY_COLOR[family] ?? 252 : 242
+  const ec = isRunning ? EFFORT_COLOR[level] ?? 250 : 242
+  return {
+    plain: level ? `${name} ${level}` : name,
+    styled: `${fg(mc)}${name}${RESET}` + (level ? ` ${fg(ec)}${level}${RESET}` : ''),
+  }
+}
 
 // The body of the engine's agent row: everything after its bullet. The
 // summary is cut so the time and tool count stay inside the row.
@@ -167,9 +199,11 @@ function rowBody(a: AgentActivity | undefined, info: RowInfo, now: number): stri
   const progress = a ? progressOf(a) : null
   const label = (progress?.label ?? '').padEnd(5)
   const desc = clipCells(oneLine(info.description || a?.description || '', 200), 40)
+  const run = modelAndEffort(info, isRunning)
   const end = a?.endedAt ? a.endedAt : now
   const tail = `${elapsed(end - info.startTime)}${a ? ` · ${a.toolCount} tools` : ''}`
-  const fixed = cellWidth(`🤖 ${' '.repeat(BAR_CELLS)} ${label} ${desc}    ${tail}`)
+  const runCells = run.plain ? `  ${run.plain}` : ''
+  const fixed = cellWidth(`🤖 ${' '.repeat(BAR_CELLS)} ${label} ${desc}${runCells}    ${tail}`)
   const room = Math.min(50, (info.columns ?? 120) - fixed)
   // A few cells of the phrase say nothing, so a narrow row leaves it out.
   const summary = a?.summary && room >= 8 ? clipCells(a.summary, room) : ''
@@ -177,6 +211,7 @@ function rowBody(a: AgentActivity | undefined, info: RowInfo, now: number): stri
   const sc = isRunning ? 223 : 242
   return (
     `🤖 ${bar(progress?.pct ?? 0)} ${fg(245)}${label}${RESET} ${fg(dc)}${desc}${RESET}` +
+    (run.styled ? `  ${run.styled}` : '') +
     (summary ? `  ${fg(sc)}${summary}${RESET}` : '') +
     `  ${fg(242)}${tail}${RESET}`
   )

@@ -1,12 +1,12 @@
 # agent-watch
 
-agent-watch는 Claude Code의 agent 목록에서 subagent 행을 한 줄 요약으로 바꾸는 mod다. mod는 Claude Code가 이벤트마다 부르는 함수(hook)를 등록해 화면과 동작을 바꾸는 플러그인이고, subagent는 메인 대화가 일을 맡겨 따로 돌리는 agent다. 각 행에는 진행 막대, 맡은 작업, 지금 하는 일을 요약한 문구, 경과 시간, tool 호출 수가 나온다.
+agent-watch는 Claude Code의 agent 목록에서 subagent 행을 한 줄 요약으로 바꾸는 mod다. mod는 Claude Code가 이벤트마다 부르는 함수(hook)를 등록해 화면과 동작을 바꾸는 플러그인이고, subagent는 메인 대화가 일을 맡겨 따로 돌리는 agent다. 각 행에는 진행 막대, 맡은 작업, 그 agent가 쓰는 모델과 effort, 지금 하는 일을 요약한 문구, 경과 시간, tool 호출 수가 나온다.
 
 ![입력창 아래 agent 목록에 나온 subagent 행](docs/screenshot.png)
 
 ```
-◯ 🤖 ███▎     ~40%  find fields  statusline 필드를 찾는 중  1m05s · 7 tools
-◯ 🤖 ██▋      1/3   fix parser  tests/parse.test.ts 실패 원인 확인 중  42s · 12 tools
+◯ 🤖 ███▎     ~40%  find fields  Haiku 5.5 low  statusline 필드를 찾는 중  1m05s · 7 tools
+◯ 🤖 ██▋      1/3   fix parser  Opus 5.5 xhigh  tests/parse.test.ts 실패 원인 확인 중  42s · 12 tools
 ```
 
 목록에서 agent를 골라 열거나 멈추는 키는 그대로 쓸 수 있다. `main` 행과 workflow(여러 agent를 스크립트로 묶어 돌리는 Claude Code 기능)가 띄운 agent의 행은 Claude Code 기본 모양으로 남는다.
@@ -16,6 +16,8 @@ agent-watch는 Claude Code의 agent 목록에서 subagent 행을 한 줄 요약�
 mod는 `agent.spawn`, `tool.call`, `turn.complete` 이벤트에 hook을 걸어 subagent마다 맡은 작업, 최근 tool 호출, 끝난 시각을 기록한다. `ui.render`는 Claude Code가 화면의 한 부분을 그리기 전에 그 내용을 hook에 묻는 이벤트이고, `AgentRow`는 agent 목록의 한 행이다. mod는 `AgentRow`의 `ui.render`에 hook을 걸어 각 행의 내용을 기록으로 만든 한 줄로 바꾼다. mod의 기록이 바뀌면 Claude Code가 그 행을 다시 그린다. Claude Code는 5초마다 행을 다시 요청하기도 하므로 경과 시간이 계속 갱신된다.
 
 요약 문구는 Anthropic의 작은 모델인 Haiku가 만든다. mod는 agent 하나에 대해 Haiku를 20초에 한 번까지만 부르고, 그 사이에 새 tool 호출이 없었으면 호출을 건너뛰므로 기다리기만 하는 agent에는 비용이 들지 않는다. Haiku는 진행률 추정치와 45자 이내의 한국어 문구를 `<퍼센트>|<문구>` 형식으로 답한다. 다른 언어로 받으려면 `hooks/register.ts`의 `SYSTEM`과 `REPLY_FORM`을 고친다.
+
+행에 나오는 모델과 effort는 agent의 마지막 요청에 실제로 실린 값이고, 첫 요청 전에는 agent를 띄울 때 정한 값이다. effort가 없으면 모델 이름만 나온다. 이는 agent가 세션의 effort를 그대로 쓰거나 그 모델이 effort를 받지 않는 경우다. 모델 이름의 색(Opus 보라, Sonnet 파랑, Haiku 초록, Fable 주황)은 모델 계열을 나타낸다.
 
 agent가 자기 작업 목록(TaskCreate와 TaskUpdate, 또는 TodoWrite)을 쓰면 진행 막대는 전체 작업 가운데 끝난 작업 수를 `1/3`처럼 보인다. 작업 목록이 없으면 Haiku의 추정치를 `~40%`처럼 `~`를 붙여 보인다.
 
